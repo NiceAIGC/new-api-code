@@ -342,34 +342,10 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	if openaiErr.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	if openaiErr.StatusCode == 307 {
-		return true
-	}
-	if openaiErr.StatusCode/100 == 5 {
-		// 超时不重试
-		if openaiErr.StatusCode == 504 || openaiErr.StatusCode == 524 {
-			return false
-		}
-		return true
-	}
-	if openaiErr.StatusCode == 408 {
-		// azure处理超时不重试
+	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
 		return false
 	}
-	// 400 和 403 允许重试
-	if openaiErr.StatusCode == http.StatusBadRequest {
-		return true
-	}
-	if openaiErr.StatusCode == http.StatusForbidden {
-		return true
-	}
-	if openaiErr.StatusCode/100 == 2 {
-		return false
-	}
-	return true
+	return operation_setting.ShouldRetryByStatusCode(openaiErr.StatusCode)
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
