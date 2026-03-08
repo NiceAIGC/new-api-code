@@ -24,3 +24,7 @@ var TaskPricePatches []string
 // TrustedRedirectDomains is a list of trusted domains for redirect URL validation.
 // Domains support subdomain matching (e.g., "example.com" matches "sub.example.com").
 var TrustedRedirectDomains []string
+
+// FeishuAlertWebhook is the Feishu bot webhook URL for relay error alerts.
+// Set via FEISHU_ALERT_WEBHOOK env var. Leave empty to disable.
+var FeishuAlertWebhook string

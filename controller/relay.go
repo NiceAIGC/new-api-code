@@ -243,6 +243,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
 	}
+
+	if newAPIError != nil {
+		service.FeishuRelayErrorAlert(relayInfo, newAPIError, useChannel)
+	}
 }
 
 var upgrader = websocket.Upgrader{

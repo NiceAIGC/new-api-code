@@ -179,4 +179,6 @@ func initConstantEnv() {
 		}
 	}
 	constant.TrustedRedirectDomains = trustedDomains
+
+	constant.FeishuAlertWebhook = GetEnvOrDefaultString("FEISHU_ALERT_WEBHOOK", "")
 }
