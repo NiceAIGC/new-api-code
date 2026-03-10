@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -37,7 +40,6 @@ func FeishuRelayErrorAlert(relayInfo *relaycommon.RelayInfo, apiErr *types.NewAP
 
 func sendFeishuRelayAlert(relayInfo *relaycommon.RelayInfo, apiErr *types.NewAPIError, usedChannels []string) error {
 	now := time.Now().Format("2006-01-02 15:04:05")
-	retryDetail := buildRetryDetail(usedChannels)
 
 	host := relayInfo.RequestHeaders["Host"]
 	if host == "" {
@@ -45,6 +47,43 @@ func sendFeishuRelayAlert(relayInfo *relaycommon.RelayInfo, apiErr *types.NewAPI
 	}
 	if host == "" {
 		host = "unknown"
+	}
+
+	// Concurrently fetch username and channel names via cache
+	var (
+		username    string
+		channelNames = make(map[string]string, len(usedChannels))
+		wg          sync.WaitGroup
+		mu          sync.Mutex
+	)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if name, err := model.GetUsernameById(relayInfo.UserId, false); err == nil {
+			username = name
+		}
+	}()
+
+	for _, chID := range usedChannels {
+		chID := chID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if id, err := strconv.Atoi(chID); err == nil {
+				if ch, err := model.CacheGetChannel(id); err == nil {
+					mu.Lock()
+					channelNames[chID] = ch.Name
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	userLabel := fmt.Sprintf("%d", relayInfo.UserId)
+	if username != "" {
+		userLabel = fmt.Sprintf("%s (%d)", username, relayInfo.UserId)
 	}
 
 	card := map[string]any{
@@ -58,7 +97,7 @@ func sendFeishuRelayAlert(relayInfo *relaycommon.RelayInfo, apiErr *types.NewAPI
 				"tag": "div",
 				"fields": []any{
 					shortField("站点", host),
-					shortField("用户 ID", fmt.Sprintf("%d", relayInfo.UserId)),
+					shortField("用户", userLabel),
 				},
 			},
 			map[string]any{
@@ -101,7 +140,7 @@ func sendFeishuRelayAlert(relayInfo *relaycommon.RelayInfo, apiErr *types.NewAPI
 				"tag": "div",
 				"text": map[string]any{
 					"tag":     "lark_md",
-					"content": fmt.Sprintf("**重试渠道链路**\n%s", retryDetail),
+					"content": fmt.Sprintf("**重试渠道链路**\n%s", buildRetryDetail(usedChannels, channelNames)),
 				},
 			},
 			map[string]any{
@@ -136,13 +175,17 @@ func shortField(label, value string) map[string]any {
 	}
 }
 
-func buildRetryDetail(usedChannels []string) string {
+func buildRetryDetail(usedChannels []string, names map[string]string) string {
 	if len(usedChannels) == 0 {
 		return "无"
 	}
 	parts := make([]string, len(usedChannels))
 	for i, ch := range usedChannels {
-		parts[i] = "渠道 " + ch
+		if name, ok := names[ch]; ok && name != "" {
+			parts[i] = fmt.Sprintf("%s(#%s)", name, ch)
+		} else {
+			parts[i] = "#" + ch
+		}
 	}
 	return strings.Join(parts, " → ")
 }
