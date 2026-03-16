@@ -208,20 +208,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	// X-Request-ID 存在说明是从 nicecode 来的请求，不需要再记录回去
 	if common.NicecodeEnabled && c.GetHeader("X-Request-ID") == "" {
 		clientIP := c.ClientIP() // 在 goroutine 外获取 IP
-		other := params.Other
-		if params.Content != "" {
-			if other == nil {
-				other = make(map[string]interface{})
-			} else {
-				// 复制一份，避免修改原始 map
-				copied := make(map[string]interface{}, len(other)+1)
-				for k, v := range other {
-					copied[k] = v
-				}
-				other = copied
-			}
-			other["_content"] = params.Content
-		}
 		gopool.Go(func() {
 			nicecode.RecordConsumeLog(
 				userId,
@@ -230,7 +216,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 				params.Quota,
 				params.PromptTokens,
 				params.CompletionTokens,
-				other,
+				params.Other,
 				params.RequestId,
 				clientIP,
 			)
