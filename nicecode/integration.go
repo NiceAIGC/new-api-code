@@ -164,11 +164,15 @@ func RecordConsumeLog(userId, tokenId int, modelName string, quota, promptTokens
 	// 获取 other 中的 cache tokens（如果存在）
 	var cacheReadTokens, cacheWriteTokens int64
 	if other != nil {
-		if val, ok := other["cache_read_input_tokens"].(float64); ok {
+		if val, ok := other["cache_tokens"].(float64); ok {
 			cacheReadTokens = int64(val)
+		} else if v, ok2 := other["cache_tokens"].(int); ok2 {
+			cacheReadTokens = int64(v)
 		}
-		if val, ok := other["cache_creation_input_tokens"].(float64); ok {
+		if val, ok := other["cache_creation_tokens"].(float64); ok {
 			cacheWriteTokens = int64(val)
+		} else if v, ok2 := other["cache_creation_tokens"].(int); ok2 {
+			cacheWriteTokens = int64(v)
 		}
 	}
 
