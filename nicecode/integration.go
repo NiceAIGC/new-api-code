@@ -45,16 +45,17 @@ func getNicecodeClient() *http.Client {
 
 // ConsumeLogRequest 积分消耗记录请求
 type ConsumeLogRequest struct {
-	ApiUserID        int    `json:"api_user_id"`
-	ApiTokenID       int    `json:"api_token_id"`
-	ModelName        string `json:"model_name"`
-	Quota            int64  `json:"quota"`
-	PromptTokens     int64  `json:"prompt_tokens"`
-	CompletionTokens int64  `json:"completion_tokens"`
-	CacheReadTokens  int64  `json:"cache_read_tokens"`
-	CacheWriteTokens int64  `json:"cache_write_tokens"`
-	RequestID        string `json:"request_id"`
-	IP               string `json:"ip"`
+	ApiUserID        int                    `json:"api_user_id"`
+	ApiTokenID       int                    `json:"api_token_id"`
+	ModelName        string                 `json:"model_name"`
+	Quota            int64                  `json:"quota"`
+	PromptTokens     int64                  `json:"prompt_tokens"`
+	CompletionTokens int64                  `json:"completion_tokens"`
+	CacheReadTokens  int64                  `json:"cache_read_tokens"`
+	CacheWriteTokens int64                  `json:"cache_write_tokens"`
+	RequestID        string                 `json:"request_id"`
+	IP               string                 `json:"ip"`
+	Other            map[string]interface{} `json:"other,omitempty"`
 }
 
 // sendConsumeLog 发送消耗记录到 nicecode（带重试机制）
@@ -188,6 +189,7 @@ func RecordConsumeLog(userId, tokenId int, modelName string, quota, promptTokens
 		CacheWriteTokens: cacheWriteTokens,
 		RequestID:        requestId,
 		IP:               clientIP,
+		Other:            other,
 	}
 
 	// 发送请求
