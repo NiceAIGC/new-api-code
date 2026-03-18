@@ -69,6 +69,10 @@ const TopUp = () => {
   const [creemOpen, setCreemOpen] = useState(false);
   const [selectedCreemProduct, setSelectedCreemProduct] = useState(null);
 
+  // Waffo 相关状态
+  const [enableWaffoTopUp, setEnableWaffoTopUp] = useState(false);
+  const [waffoPayMethods, setWaffoPayMethods] = useState([]);
+  const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -310,6 +314,36 @@ const TopUp = () => {
     }
   };
 
+  const waffoTopUp = async (payMethodIndex) => {
+    try {
+      if (topUpCount < waffoMinTopUp) {
+        showError(t('充值数量不能小于') + waffoMinTopUp);
+        return;
+      }
+      setPaymentLoading(true);
+      const requestBody = {
+        amount: parseInt(topUpCount),
+      };
+      if (payMethodIndex != null) {
+        requestBody.pay_method_index = payMethodIndex;
+      }
+      const res = await API.post('/api/user/waffo/pay', requestBody);
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data?.payment_url) {
+          window.open(data.payment_url, '_blank');
+        } else {
+          showError(data || t('支付请求失败'));
+        }
+      } else {
+        showError(res);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
     window.open(data.checkout_url, '_blank');
@@ -453,6 +487,10 @@ const TopUp = () => {
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
+          const enableWaffoTopUp = data.enable_waffo_topup || false;
+          setEnableWaffoTopUp(enableWaffoTopUp);
+          setWaffoPayMethods(data.waffo_pay_methods || []);
+          setWaffoMinTopUp(data.waffo_min_topup || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
