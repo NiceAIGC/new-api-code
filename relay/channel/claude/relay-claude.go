@@ -680,6 +680,39 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
+	if usage == nil {
+		return 0
+	}
+	splitCacheCreationTokens := usage.ClaudeCacheCreation5mTokens + usage.ClaudeCacheCreation1hTokens
+	if splitCacheCreationTokens == 0 {
+		return usage.PromptTokensDetails.CachedCreationTokens
+	}
+	if usage.PromptTokensDetails.CachedCreationTokens > splitCacheCreationTokens {
+		return usage.PromptTokensDetails.CachedCreationTokens
+	}
+	return splitCacheCreationTokens
+}
+
+func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
+	if usage == nil {
+		return dto.Usage{}
+	}
+	clone := *usage
+	clone.ClaudeCacheCreation5mTokens, clone.ClaudeCacheCreation1hTokens = service.NormalizeCacheCreationSplit(
+		usage.PromptTokensDetails.CachedCreationTokens,
+		usage.ClaudeCacheCreation5mTokens,
+		usage.ClaudeCacheCreation1hTokens,
+	)
+	cacheCreationTokens := cacheCreationTokensForOpenAIUsage(usage)
+	totalInputTokens := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + cacheCreationTokens
+	clone.PromptTokens = totalInputTokens
+	clone.InputTokens = totalInputTokens
+	clone.TotalTokens = totalInputTokens + usage.CompletionTokens
+	clone.UsageSemantic = "openai"
+	clone.UsageSource = "anthropic"
+	return clone
+}
 func buildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo *ClaudeResponseInfo) *dto.ClaudeUsage {
 	usage := &dto.ClaudeUsage{}
 	if claudeResponse != nil && claudeResponse.Usage != nil {
@@ -699,11 +732,26 @@ func buildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo 
 	if usage.CacheCreationInputTokens == 0 && claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens > 0 {
 		usage.CacheCreationInputTokens = claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens
 	}
-	if usage.CacheCreation == nil && (claudeInfo.Usage.ClaudeCacheCreation5mTokens > 0 || claudeInfo.Usage.ClaudeCacheCreation1hTokens > 0) {
-		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
-			Ephemeral5mInputTokens: claudeInfo.Usage.ClaudeCacheCreation5mTokens,
-			Ephemeral1hInputTokens: claudeInfo.Usage.ClaudeCacheCreation1hTokens,
-		}
+	cacheCreation5m := 0
+	cacheCreation1h := 0
+	if usage.CacheCreation != nil {
+		cacheCreation5m = usage.CacheCreation.Ephemeral5mInputTokens
+		cacheCreation1h = usage.CacheCreation.Ephemeral1hInputTokens
+	} else {
+		cacheCreation5m = claudeInfo.Usage.ClaudeCacheCreation5mTokens
+		cacheCreation1h = claudeInfo.Usage.ClaudeCacheCreation1hTokens
+	}
+	cacheCreation5m, cacheCreation1h = service.NormalizeCacheCreationSplit(
+		usage.CacheCreationInputTokens,
+		cacheCreation5m,
+		cacheCreation1h,
+	)
+	if usage.CacheCreation == nil && (cacheCreation5m > 0 || cacheCreation1h > 0) {
+		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{}
+	}
+	if usage.CacheCreation != nil {
+		usage.CacheCreation.Ephemeral5mInputTokens = cacheCreation5m
+		usage.CacheCreation.Ephemeral1hInputTokens = cacheCreation1h
 	}
 	return usage
 }
