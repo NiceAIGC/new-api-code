@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -165,16 +166,13 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 
 func ValidateUserToken(key string) (token *Token, err error) {
 	if key == "" {
-		return nil, ErrTokenInvalid
+		return nil, ErrTokenNotProvided
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
-		if token.Status == common.TokenStatusExhausted {
-			return token, ErrTokenInvalid
-		} else if token.Status == common.TokenStatusExpired {
-			return token, ErrTokenInvalid
-		}
-		if token.Status != common.TokenStatusEnabled {
+		if token.Status == common.TokenStatusExhausted ||
+			token.Status == common.TokenStatusExpired ||
+			token.Status != common.TokenStatusEnabled {
 			return token, ErrTokenInvalid
 		}
 		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
@@ -189,7 +187,6 @@ func ValidateUserToken(key string) (token *Token, err error) {
 		}
 		if !token.UnlimitedQuota && token.RemainQuota <= 0 {
 			if !common.RedisEnabled {
-				// in this case, we can make sure the token is exhausted
 				token.Status = common.TokenStatusExhausted
 				err := token.SelectUpdate()
 				if err != nil {
@@ -203,9 +200,8 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrTokenInvalid
-	} else {
-		return nil, ErrDatabase
 	}
+	return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 }
 
 func GetTokenByIds(id int, userId int) (*Token, error) {
