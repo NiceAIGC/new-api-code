@@ -25,6 +25,18 @@ const (
 
 var errSourceHeaderNotFound = errors.New("source header does not exist")
 
+var paramOverrideKeyAuditPaths = map[string]struct{}{
+	"model":          {},
+	"original_model": {},
+	"upstream_model": {},
+	"service_tier":   {},
+	"inference_geo":  {},
+	"speed":          {},
+}
+
+type paramOverrideAuditRecorder struct {
+	lines []string
+}
 type ConditionOperation struct {
 	Path           string      `json:"path"`             // JSON路径
 	Mode           string      `json:"mode"`             // full, prefix, suffix, contains, gt, gte, lt, lte

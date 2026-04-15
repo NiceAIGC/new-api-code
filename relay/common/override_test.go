@@ -1902,6 +1902,8 @@ func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 	input := `{
 		"service_tier":"flex",
 		"inference_geo":"eu",
+		"speed":"fast",
+		"cache_control":{"type":"ephemeral"},
 		"safety_identifier":"user-123",
 		"store":true,
 		"stream_options":{"include_obfuscation":false}
@@ -1912,7 +1914,7 @@ func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RemoveDisabledFields returned error: %v", err)
 	}
-	assertJSONEqual(t, `{"store":true}`, string(out))
+	assertJSONEqual(t, `{"cache_control":{"type":"ephemeral"},"store":true}`, string(out))
 }
 
 func TestRemoveDisabledFieldsAllowInferenceGeo(t *testing.T) {
@@ -1931,6 +1933,120 @@ func TestRemoveDisabledFieldsAllowInferenceGeo(t *testing.T) {
 	assertJSONEqual(t, `{"inference_geo":"eu","store":true}`, string(out))
 }
 
+func TestRemoveDisabledFieldsAllowSpeed(t *testing.T) {
+	input := `{
+		"speed":"fast",
+		"store":true
+	}`
+	settings := dto.ChannelOtherSettings{
+		AllowSpeed: true,
+	}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"speed":"fast","store":true}`, string(out))
+}
+
+func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = true
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	info := &RelayInfo{
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode": "copy",
+						"from": "metadata.target_model",
+						"to":   "model",
+					},
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "service_tier",
+						"value": "flex",
+					},
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "temperature",
+						"value": 0.1,
+					},
+				},
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-4.1",
+		"temperature":0.7,
+		"metadata":{"target_model":"gpt-4.1-mini"}
+	}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+	assertJSONEqual(t, `{
+		"model":"gpt-4.1-mini",
+		"temperature":0.1,
+		"service_tier":"flex",
+		"metadata":{"target_model":"gpt-4.1-mini"}
+	}`, string(out))
+
+	expected := []string{
+		"copy metadata.target_model -> model",
+		"set service_tier = flex",
+		"set temperature = 0.1",
+	}
+	if !reflect.DeepEqual(info.ParamOverrideAudit, expected) {
+		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
+	}
+}
+
+func TestApplyParamOverrideWithRelayInfoRecordsOnlyKeyOperationsWhenDebugDisabled(t *testing.T) {
+	originalDebugEnabled := common2.DebugEnabled
+	common2.DebugEnabled = false
+	t.Cleanup(func() {
+		common2.DebugEnabled = originalDebugEnabled
+	})
+
+	info := &RelayInfo{
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode": "copy",
+						"from": "metadata.target_model",
+						"to":   "model",
+					},
+					map[string]interface{}{
+						"mode":  "set",
+						"path":  "temperature",
+						"value": 0.1,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := ApplyParamOverrideWithRelayInfo([]byte(`{
+		"model":"gpt-4.1",
+		"temperature":0.7,
+		"metadata":{"target_model":"gpt-4.1-mini"}
+	}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+
+	expected := []string{
+		"copy metadata.target_model -> model",
+	}
+	if !reflect.DeepEqual(info.ParamOverrideAudit, expected) {
+		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
+	}
+}
 func assertJSONEqual(t *testing.T, want, got string) {
 	t.Helper()
 
