@@ -755,16 +755,23 @@ func IsAdmin(userId int) bool {
 //	return user.Status == common.UserStatusEnabled, nil
 //}
 
-func ValidateAccessToken(token string) (user *User) {
+func ValidateAccessToken(token string) (user *User, err error) {
 	if token == "" {
-		return nil
+		return nil, ErrTokenInvalid
 	}
 	token = strings.Replace(token, "Bearer ", "", 1)
 	user = &User{}
-	if DB.Where("access_token = ?", token).First(user).RowsAffected == 1 {
-		return user
+	result := DB.Where("access_token = ?", token).First(user)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrTokenInvalid
+		}
+		return nil, ErrDatabase
 	}
-	return nil
+	if result.RowsAffected != 1 {
+		return nil, ErrTokenInvalid
+	}
+	return user, nil
 }
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
