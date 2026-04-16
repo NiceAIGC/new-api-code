@@ -56,12 +56,12 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	if !forceDefaultTools && userAgent != "" {
 		userAgentLower := strings.ToLower(userAgent)
 		// 检测是否为 claude-cli 官方客户端
-		isClaudeCLI := strings.Contains(userAgentLower, "claude-cli") || 
-		               strings.Contains(userAgentLower, "anthropic-cli")
+		isClaudeCLI := strings.Contains(userAgentLower, "claude-cli") ||
+			strings.Contains(userAgentLower, "anthropic-cli")
 		// 检测已知的非 claude-cli 客户端（opencode、cursor 等）
 		isNonClaudeClient := strings.Contains(userAgentLower, "opencode") ||
-		                     strings.Contains(userAgentLower, "cursor") ||
-		                     (strings.Contains(userAgentLower, "vscode") && !isClaudeCLI)
+			strings.Contains(userAgentLower, "cursor") ||
+			(strings.Contains(userAgentLower, "vscode") && !isClaudeCLI)
 		// 如果检测到非 claude-cli 客户端，自动启用 force_default_tools
 		if isNonClaudeClient {
 			forceDefaultTools = true
@@ -95,74 +95,74 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	if !forceDefaultTools {
 		for _, tool := range textRequest.Tools {
 			if params, ok := tool.Function.Parameters.(map[string]any); ok {
-			claudeTool := dto.Tool{
-				Name:        tool.Function.Name,
-				Description: tool.Function.Description,
-			}
-			claudeTool.InputSchema = make(map[string]interface{})
-			if params["type"] != nil {
-				claudeTool.InputSchema["type"] = params["type"].(string)
-			}
-			claudeTool.InputSchema["properties"] = params["properties"]
-			claudeTool.InputSchema["required"] = params["required"]
-			for s, a := range params {
-				if s == "type" || s == "properties" || s == "required" {
-					continue
+				claudeTool := dto.Tool{
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
 				}
-				claudeTool.InputSchema[s] = a
-			}
-			claudeTools = append(claudeTools, &claudeTool)
+				claudeTool.InputSchema = make(map[string]interface{})
+				if params["type"] != nil {
+					claudeTool.InputSchema["type"] = params["type"].(string)
+				}
+				claudeTool.InputSchema["properties"] = params["properties"]
+				claudeTool.InputSchema["required"] = params["required"]
+				for s, a := range params {
+					if s == "type" || s == "properties" || s == "required" {
+						continue
+					}
+					claudeTool.InputSchema[s] = a
+				}
+				claudeTools = append(claudeTools, &claudeTool)
 			}
 		}
 
 		// Web search tool
 		// https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
 		if textRequest.WebSearchOptions != nil {
-		webSearchTool := dto.ClaudeWebSearchTool{
-			Type: "web_search_20250305",
-			Name: "web_search",
-		}
-
-		// 处理 user_location
-		if textRequest.WebSearchOptions.UserLocation != nil {
-			anthropicUserLocation := &dto.ClaudeWebSearchUserLocation{
-				Type: "approximate", // 固定为 "approximate"
+			webSearchTool := dto.ClaudeWebSearchTool{
+				Type: "web_search_20250305",
+				Name: "web_search",
 			}
 
-			// 解析 UserLocation JSON
-			var userLocationMap map[string]interface{}
-			if err := json.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
-				// 检查是否有 approximate 字段
-				if approximateData, ok := userLocationMap["approximate"].(map[string]interface{}); ok {
-					if timezone, ok := approximateData["timezone"].(string); ok && timezone != "" {
-						anthropicUserLocation.Timezone = timezone
-					}
-					if country, ok := approximateData["country"].(string); ok && country != "" {
-						anthropicUserLocation.Country = country
-					}
-					if region, ok := approximateData["region"].(string); ok && region != "" {
-						anthropicUserLocation.Region = region
-					}
-					if city, ok := approximateData["city"].(string); ok && city != "" {
-						anthropicUserLocation.City = city
+			// 处理 user_location
+			if textRequest.WebSearchOptions.UserLocation != nil {
+				anthropicUserLocation := &dto.ClaudeWebSearchUserLocation{
+					Type: "approximate", // 固定为 "approximate"
+				}
+
+				// 解析 UserLocation JSON
+				var userLocationMap map[string]interface{}
+				if err := json.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
+					// 检查是否有 approximate 字段
+					if approximateData, ok := userLocationMap["approximate"].(map[string]interface{}); ok {
+						if timezone, ok := approximateData["timezone"].(string); ok && timezone != "" {
+							anthropicUserLocation.Timezone = timezone
+						}
+						if country, ok := approximateData["country"].(string); ok && country != "" {
+							anthropicUserLocation.Country = country
+						}
+						if region, ok := approximateData["region"].(string); ok && region != "" {
+							anthropicUserLocation.Region = region
+						}
+						if city, ok := approximateData["city"].(string); ok && city != "" {
+							anthropicUserLocation.City = city
+						}
 					}
 				}
+
+				webSearchTool.UserLocation = anthropicUserLocation
 			}
 
-			webSearchTool.UserLocation = anthropicUserLocation
-		}
-
-		// 处理 search_context_size 转换为 max_uses
-		if textRequest.WebSearchOptions.SearchContextSize != "" {
-			switch textRequest.WebSearchOptions.SearchContextSize {
-			case "low":
-				webSearchTool.MaxUses = WebSearchMaxUsesLow
-			case "medium":
-				webSearchTool.MaxUses = WebSearchMaxUsesMedium
-			case "high":
-				webSearchTool.MaxUses = WebSearchMaxUsesHigh
+			// 处理 search_context_size 转换为 max_uses
+			if textRequest.WebSearchOptions.SearchContextSize != "" {
+				switch textRequest.WebSearchOptions.SearchContextSize {
+				case "low":
+					webSearchTool.MaxUses = WebSearchMaxUsesLow
+				case "medium":
+					webSearchTool.MaxUses = WebSearchMaxUsesMedium
+				case "high":
+					webSearchTool.MaxUses = WebSearchMaxUsesHigh
+				}
 			}
-		}
 
 			claudeTools = append(claudeTools, &webSearchTool)
 		}
@@ -321,7 +321,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 				formatMessages = formatMessages[:len(formatMessages)-1]
 			}
 		}
-		if fmtMessage.Content == nil {
+		if fmtMessage.Content == nil || (fmtMessage.IsStringContent() && fmtMessage.StringContent() == "") {
 			fmtMessage.SetStringContent("...")
 		}
 		formatMessages = append(formatMessages, fmtMessage)
@@ -337,14 +337,16 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		if message.Role == "system" {
 			// 根据Claude API规范，system字段使用数组格式更有通用性
 			if message.IsStringContent() {
-				systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
-					Type: "text",
-					Text: common.GetPointer[string](message.StringContent()),
-				})
+				if text := message.StringContent(); text != "" {
+					systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
+						Type: "text",
+						Text: common.GetPointer[string](text),
+					})
+				}
 			} else {
 				// 支持复合内容的system消息（虽然不常见，但需要考虑完整性）
 				for _, ctx := range message.ParseContent() {
-					if ctx.Type == "text" {
+					if ctx.Type == "text" && ctx.Text != "" {
 						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
 							Type: "text",
 							Text: common.GetPointer[string](ctx.Text),
@@ -402,14 +404,11 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 					}
 				}
 			} else if message.IsStringContent() && message.ToolCalls == nil {
-				// 检查内容是否为空，如果为空则跳过或使用占位符
-				content := message.StringContent()
-				if strings.TrimSpace(content) == "" {
-					// 空内容，使用占位符
-					claudeMessage.Content = "..."
-				} else {
-					claudeMessage.Content = content
+				text := message.StringContent()
+				if strings.TrimSpace(text) == "" {
+					text = "..."
 				}
+				claudeMessage.Content = text
 			} else {
 				claudeMediaMessages := make([]dto.ClaudeMediaMessage, 0)
 				for _, mediaMessage := range message.ParseContent() {
@@ -417,13 +416,10 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						Type: mediaMessage.Type,
 					}
 					if mediaMessage.Type == "text" {
-						// 检查文本内容是否为空，空文本块会导致 API 错误
-						textContent := strings.TrimSpace(mediaMessage.Text)
-						if textContent == "" {
-							// 跳过空的文本块
+						if strings.TrimSpace(mediaMessage.Text) == "" {
 							continue
 						}
-						claudeMediaMessage.Text = common.GetPointer[string](textContent)
+						claudeMediaMessage.Text = common.GetPointer[string](mediaMessage.Text)
 					} else {
 						imageUrl := mediaMessage.GetImageMedia()
 						claudeMediaMessage.Type = "image"
